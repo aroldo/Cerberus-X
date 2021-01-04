@@ -1,0 +1,716 @@
+Strict
+#If TARGET="glfw"
+	#GLFW_WINDOW_WIDTH=1024
+	#GLFW_WINDOW_HEIGHT=768 
+#Elseif TARGET="html5"
+	#HTML5_CANVAS_WIDTH=1024                'Set the width of the canvas.
+	#HTML5_CANVAS_HEIGHT=768                'Set the height of the canvas.
+#Elseif TARGET="android"
+	#ANDROID_APP_LABEL="Gamepad"
+	#ANDROID_APP_PACKAGE="com.apdconsultinginc.gpad"
+	#ANDROID_APP_ICON=""
+	#ANDROID_SCREEN_ORIENTATION="sensorLandscape"					'"user", "portrait", "landscape","sensorLandscape"
+	#ANDROID_GAMEPAD_ENABLED=True
+	
+	#ANDROID_MIN_SDK_VERSION="16"
+	#ANDROID_TARGET_SDK_VERSION="28"
+	#ANDROID_BUILD_TOOLS_VERSION="28.0.3"
+	#ANDROID_GRADLE_VERSION="3.2.1"
+	#ANDROID_GRADLE_DISTRIBUTION="gradle-4.6-all.zip"
+	#ANDROID_REPOSITORIES=""
+	#ANDROID_JAVA_SOURCE_VERSION="VERSION_1_8"
+	#ANDROID_JAVA_TARGET_VERSION="VERSION_1_8"
+	#ANDROID_APPLICATION_EXTRAS=""
+	
+	#ANDROID_VERSION_CODE="1"
+	#ANDROID_VERSION_NAME="1.0"
+	#ANDROID_NATIVE_GL_ENABLED=False					'for use with the opengl modules
+	'#ANDROID_KEY_STORE="../../release-key.keystore"
+	'#ANDROID_KEY_ALIAS="release-key-alias"
+	'#ANDROID_KEY_STORE_PASSWORD="password"
+	'#ANDROID_KEY_ALIAS_PASSWORD="password"
+'#ANDROID_SIGN_APP=False
+#Elseif TARGET="ios"
+''	Import "sfx/m4a/blob_fire.m4a"
+''	Import "sfx/m4a/blob_hit.m4a"
+''	Import "sfx/m4a/explosion.m4a"
+''	Import "sfx/m4a/tank_fire.m4a"
+''	Import "sfx/m4a/tank_hit.m4a"
+''	Import "sfx/m4a/thrust.m4a"
+#End
+
+
+Import mojo2
+'Import playniax.pyro.engine.gui
+Import playniax.pyro.guiskinner
+Import playniax.pyro.guiskins.pyro	
+
+Import playniax.pyro.fonts.default22
+
+
+
+Function Main:Int()
+	New Game()
+	Return 0
+End
+
+Class Sprite
+	Field atlas:Image = Null
+	Field name:String
+	Field tpStringFromFile:String
+	Field tpAllStrings:String[]
+	Field engine:ftEngine
+	Field imgMap:StringMap<AtlasSubImage> = Null
+	'------------------------------------------
+	Method _Print:Void()
+		For Local item:= Eachin Self.imgMap
+			Print(item.Key() + ";" + ftAtlasSubImage(item.Value()).name)
+		Next
+	End
+	'summary:Returns the angle offset of an image.
+	Method GetAngleOffset:Float(imageName:String)
+		Local si := Self.imgMap.Get(imageName.ToLower())
+		If si <> Null Then
+			Return si.angleOffset
+		Endif
+		Return 0.0
+	End
+	'summary:Returns the height of an image.
+	Method GetHeight:Int(imageName:String)
+		Local si := Self.imgMap.Get(imageName.ToLower())
+		If si <> Null Then
+			Return si.tpHeight
+		Endif
+		Return 0
+	End
+	'summary:Returns the image with the given name.
+	Method GetImage:Image(imageName:String)
+		Local img:Image = Null
+		Local si := Self.imgMap.Get(imageName.ToLower())
+		If si <> Null Then
+			img = si.img
+		Endif
+		Return img
+	End
+	'summary:Returns the height of the subimage with the given name.
+	Method GetImageHeight:Float(imageName:String)
+		Local retVal:Float = 0.0
+		Local si := Self.imgMap.Get(imageName.ToLower())
+		If si <> Null Then
+			retVal = si.tpHeight
+		Endif
+		Return retVal
+	End
+	'summary:Returns the width of the subimage with the given name.
+	Method GetImageWidth:Float(imageName:String)
+		Local retVal:Float = 0.0
+		Local si := Self.imgMap.Get(imageName.ToLower())
+		If si <> Null Then
+			retVal = si.tpWidth
+		Endif
+		Return retVal
+	End
+	'summary:Returns the number of images in the sprite atlas.
+	Method GetImageCount:Int()
+		Return Self.imgMap.Count()
+	End
+	'------------------------------------------
+	'summary:Returns TRUE if the image with the given name is rotated inside the sprite atlas.
+	Method GetRotated:Bool(imageName:String)
+		Local si := Self.imgMap.Get(imageName.ToLower())
+		If si <> Null Then
+			Return si.isRotated
+		Endif
+		Return False
+	End
+
+	'summary:Returns the width of an image.
+	Method GetWidth:Int(imageName:String)
+		Local si := Self.imgMap.Get(imageName.ToLower())
+		If si <> Null Then
+			Return si.tpWidth
+		Endif
+		Return 0
+	End
+	'summary:Remove a sprite atlas. Set discard to TRUE if you want the corresponding images to be discarded.
+	Method Remove:Void(discard:Bool = False)
+		If discard = True Then Self.atlas.Discard()
+		Self.atlas = Null
+		Self.engine = Null
+		Self.atlas = Null
+		For Local item:= Eachin Self.imgMap
+			If discard = True Then
+				ftAtlasSubImage(item.Value()).img.Discard()
+			Else
+				ftAtlasSubImage(item.Value()).img = Null
+			Endif
+		Next
+		Self.imgMap.Clear()
+	End
+
+	Method Load:Void(imgName:String, dataName:String)
+		tpStringFromFile = LoadString(dataName)
+		If tpStringFromFile.Length() > 0 Then
+			tpAllStrings = tpStringFromFile.Split(String.FromChar(13)+String.FromChar(10))
+			If tpAllStrings.Length() < 2 then
+				tpAllStrings = tpStringFromFile.Split(String.FromChar(10))
+			Endif
+			atlas = Image.Load(imgName)
+			name = dataName
+			imgMap = New StringMap<AtlasSubImage>
+			Self._Parse()
+		Endif
+	End
+	Method _Parse:Void(flags:Int = Image.Filter)
+		Local s:String
+		Local tpasLen:Int
+		tpasLen = tpAllStrings.Length()
+		'		Print "tpasLen:" + tpasLen
+		For Local count:Int = 0 To (tpasLen-1)
+			s = String(tpAllStrings[count]).ToLower().Trim()
+			If s.Contains("rotate:")
+				Local si:= New AtlasSubImage
+				'** Get name
+				si.name = String(tpAllStrings[count - 1]).ToLower()
+
+				'** Get rotation flag
+				Local strRot:String = tpAllStrings[count]
+				strRot = strRot.Replace("rotate:", "").Trim()
+				If strRot.ToLower() = "true" Then
+					si.isRotated = True
+					si.angleOffset = -90.0
+				EndIf
+
+				'** Get X, Y
+				Local strXY:String = tpAllStrings[count + 1]
+				strXY = strXY.Replace("xy:","").Trim()
+				Local strXYsplit:String[] = strXY.Split(",")
+				si.tpXPos = Int(strXYsplit[0])
+				si.tpYPos = Int(strXYsplit[1])
+				
+				'** Get Width, Height
+				Local strWH:String = tpAllStrings[count + 2]
+				strWH = strWH.Replace("size:","").Trim()
+				Local strWHsplit:String[] = strWH.Split(",")
+				si.tpWidth = Int(strWHsplit[0])
+				si.tpHeight = Int(strWHsplit[1])
+				
+				'** Grab the sub image
+				If strRot.ToLower() = "true" Then
+					si.img = New Image(Self.atlas, si.tpXPos, si.tpYPos, si.tpHeight, si.tpWidth)
+				Else
+					si.img = New Image( Self.atlas,si.tpXPos,si.tpYPos,si.tpWidth,si.tpHeight )
+				EndIf
+				si.img.SetFlagsMask(flags)
+				si.img.SetHandle(si.img.Width() / 2, si.img.Height() / 2)
+				'** Add subimage to the image map
+				Self.imgMap.Add(si.name, si)
+			EndIf
+		Next
+	End
+End
+Class AtlasSubImage
+	Field name:String
+	Field img:Image
+	Field tpXPos:Int = 0
+	Field tpYPos:Int = 0
+	Field tpWidth:Int = 0
+	Field tpHeight:Int = 0
+	Field isRotated:Bool = False
+	Field angleOffset:Float = 0.0
+End
+
+Class Timer
+	Field et:Float = 0.0
+	Field m_time:Float = 0.0
+	Field m_delay:Float = 0.0
+	'Field st:Bool = False
+	 
+	Method time:Bool(milisec:Float)
+		m_delay += et 
+		'Print "time:" + m_delay
+		If m_delay >= milisec
+			m_delay = 0.0
+			'Print " RESET Timer"
+			Return True
+		'Else
+			'st = False
+		End
+		Return False
+	End
+	Method OnUpdate:Int()
+		Local newtime:Float = Millisecs()
+		et = (newtime - m_time) / 1000.0 '/ / elapsed time in seconds
+		If (et > (1.0 / 15.0)) Then	et = 1.0 / 15.0
+		Return 0
+	End
+End
+'app
+Class Game Extends App
+	Const WIDTH:Float= 1024.0 
+	Const HEIGHT:Float= 768.0
+	Field cw:Float = 640.0
+	Field ch:Float = 320.0
+	
+	Field canvas:Canvas
+	
+	Field stickLeft:Float[2]
+	Field stickRight:Float[2]
+	
+	Field triggerLeft:float
+	Field triggerRight:Float
+	
+	Field leftstick:Float[2]
+	Field rightstick:Float[2]
+	Field lefttrigger:Float[2]
+	Field righttrigger:Float[2]
+	
+	'Field buttons:Bool[JOY_MENU + 1]
+	Field buttons:Bool[15 + 1]
+	Field gamepads:Int = 0 ' Number of connected physical joysticks
+	Field battlevel:Float = 0.0
+	Field tmr:Timer
+	'sprite
+	Field spr:Sprite
+	'pyro -------------
+	Field gamepad:prGuiImage
+	Field joyon:prGuiImage
+	Field joyoff:prGuiImage
+	'buttons
+	Field buttonA:prGuiImage
+	Field buttonB:prGuiImage
+	Field buttonX:prGuiImage
+	Field buttonY:prGuiImage
+	Field buttonUP:prGuiImage
+	Field buttonDOWN:prGuiImage
+	Field buttonLEFT:prGuiImage
+	Field buttonRIGHT:prGuiImage
+	Field buttonMENU:prGuiImage
+	Field buttonVIEW:prGuiImage
+	Field buttonXBOX:prGuiImage
+	Field buttonLB:prGuiImage
+	Field buttonLT:prGuiImage
+	Field buttonRB:prGuiImage
+	Field buttonRT:prGuiImage
+	Field buttonLJB:prGuiImage
+	Field buttonRJB:prGuiImage
+	Field buttonLJOY:prGuiImage
+	Field buttonRJOY:prGuiImage
+	Field logo:prGuiImage
+	'lables
+	Field title:prGuiLabel
+	Field title2:prGuiLabel
+	Field status:prGuiLabel
+	Field vendor:prGuiLabel
+	Field level:prGuiLabel
+	Field bat:prGuiLabel
+	Field powered:prGuiLabel
+	'progress bar
+	Field progressBar:prGuiHProgressBar
+	'----
+	Global guiLayer:prGuiLayer
+	Field letterBox:Int[]
+	
+	Method OnCreate:Int()
+		prSetGuiSkin "pyro_gui_skin.txt"	' Loads the GUI Skins !!!! neede for scholl bars and Progress Bar !!!	
+		SetUpdateRate(60)
+		cw = WIDTH
+		ch = HEIGHT
+		
+		
+		canvas = New Canvas
+		Shader.SetDefaultShader( Shader.FastShader() )
+		
+		letterBox = prCalcLetterbox(HEIGHT,WIDTH, [0, 0, DeviceWidth(), DeviceHeight()]) ' virtual Width, virtual Height, Device Width, Device Height
+
+		' Create the gui layer 
+		guiLayer = New prGuiLayer()
+		guiLayer.SetVirtual WIDTH,HEIGHT
+		guiLayer.SetAmbientLight 1,1,1,1
+		guiLayer.SetClearColor 0,0,0,1
+		'guiLayer.Renderer.SetClearMode 0
+		
+
+		guiLayer.SetViewport letterBox[0],letterBox[1],letterBox[2],letterBox[3]	
+		canvas.SetViewport(0, 0, cw, ch)
+		
+		spr = New Sprite()
+		spr.Load("images/gamepad.png", "images/gamepad.txt")
+		
+		SetAppAssets()
+		
+		tmr = New Timer()
+		
+		Return 0
+	End
+
+	Method OnUpdate:Int()
+		guiLayer.Update
+		tmr.OnUpdate()
+		
+		#If TARGET="ios" or TARGET="android"
+			If tmr.time(0.250) ' Check for new Joystick after while
+				gamepads = CountJoysticks( True )
+				If gamepads > 0 
+					joyon.SetVisible True
+					joyoff.SetVisible False
+					status.Label.SetText "On"
+					vendor.Label.SetText GetJoyVendor("")
+					'Print "BattLevel Raw: "+ JoyBattLevel(0.0)
+					'Print "BattLevel * 100 : "+ JoyBattLevel(0.0)*100
+					Local battpercent:Int = JoyBattLevel(0.0)*100
+					progressBar.Value = battpercent
+					level.Label.SetText battpercent + "%"
+				Else
+					joyon.SetVisible False
+					joyoff.SetVisible True
+					status.Label.SetText "Off"
+					vendor.Label.SetText ""
+					progressBar.Value = 0
+					level.Label.SetText  "%"
+				End
+				
+			End 
+		#End
+		
+		'If tmr.time(0.500) ' Check for battery level after while
+			'battlevel = JoyBattLevel( )
+			'Print "BattLevel: "+battlevel
+		'End 
+		'update all states
+		stickLeft[0] = JoyX(0)
+		stickLeft[1] = JoyY(0)
+		
+		stickRight[0] = JoyX(1)
+		stickRight[1] = JoyY(1)
+		
+		'have to do this (Max) otherwise GLFW seems to combine both triggers incorrectly!
+		triggerLeft = Max(0.0, JoyZ(0))
+		triggerRight = Max(0.0, JoyZ(1))
+		
+		For Local index:= JOY_A To 15'JOY_MENU
+			buttons[index] = JoyHit(index) Or JoyDown(index)
+		Next
+		' Test the progress bar
+		'If gamepads > 0 
+			'If KeyDown( KEY_LEFT ) Or buttons[JOY_LEFT] And progressBar.Value>0 progressBar.Value-=1
+			'If KeyDown( KEY_RIGHT ) Or buttons[JOY_RIGHT] And progressBar.Value< progressBar.Maximum progressBar.Value+=1
+		'End
+		
+		#rem For Local i:Int = 0 Until 32
+			 If TouchDown( i )
+				For Local jInt:=1 To 10
+					Print "X:"+ TouchX(i) +" Y:"+ TouchY(i)
+				next
+			Endif
+		#End End
+		' Update Buttons State
+		DrawButton(buttonA, buttons[JOY_A])
+		DrawButton(buttonB, buttons[JOY_B])
+		DrawButton(buttonX, buttons[JOY_X])
+		DrawButton(buttonY, buttons[JOY_Y])
+		
+		DrawButton(buttonLEFT, buttons[JOY_LEFT])
+		DrawButton(buttonRIGHT, buttons[JOY_RIGHT])
+		DrawButton(buttonUP, buttons[JOY_UP])
+		DrawButton(buttonDOWN, buttons[JOY_DOWN])
+		
+		DrawButton(buttonMENU, buttons[JOY_START])
+		DrawButton(buttonVIEW, buttons[JOY_BACK])
+		DrawButton(buttonXBOX, buttons[JOY_MENU])
+		
+		DrawButton(buttonLB, buttons[JOY_LB])
+		DrawButton(buttonRB, buttons[JOY_RB])
+		
+		DrawButton(buttonLJB, buttons[JOY_LSB])
+		DrawButton(buttonRJB, buttons[JOY_RSB])
+		
+		DrawAnalog(buttonLJOY,leftstick[0],leftstick[1],stickLeft[0], -stickLeft[1])
+		DrawAnalog(buttonRJOY,rightstick[0],rightstick[1],stickRight[0], -stickRight[1])
+		
+		DrawAxis(buttonLT,lefttrigger[0],lefttrigger[1],buttonLT.Width,buttonLT.Height,triggerLeft)
+		DrawAxis(buttonRT,righttrigger[0],righttrigger[1],buttonRT.Width,buttonRT.Height,triggerRight)
+		Return 0
+	End
+
+	Method OnRender:Int()
+		
+		canvas.SetViewport(0, 0,DeviceWidth(), DeviceHeight())
+        canvas.SetProjection2d(0, WIDTH, 0, HEIGHT)
+        canvas.Clear
+		
+		guiLayer.SetOverlay canvas
+		letterBox = prCalcLetterbox(WIDTH, HEIGHT, [0, 0, DeviceWidth(), DeviceHeight()])
+		
+		guiLayer.SetViewport letterBox[0],letterBox[1],letterBox[2],letterBox[3]
+		
+		'ReadPorts()
+		
+		guiLayer.Render
+		canvas.Flush()
+	Return 0
+	End
+	
+	Method SetAppAssets:Void()
+	
+		title = New prGuiLabel()
+		title.SetLayer guiLayer
+		title.Label.SetBitmapFont prContent.GetFont("fonts/gameplayed-vyl7_48.txt" )
+		title.Label.SetText "Game Pad Test"
+		title.SetPosition( prPercentageOf( 50,WIDTH ),prPercentageOf( 5,HEIGHT ) )
+		
+		title2 = New prGuiLabel()
+		title2.SetLayer guiLayer
+		title2.Label.SetBitmapFont prContent.GetFont("fonts/gameplayed-vyl7_32.txt" )
+		title2.Label.SetText "APD Games 2020"
+		title2.SetPosition( prPercentageOf( 50,WIDTH ),prPercentageOf( 92,HEIGHT ) )
+		
+		powered = New prGuiLabel()
+		powered.SetLayer guiLayer
+		powered.Label.SetBitmapFont prContent.GetFont("fonts/gameplayed-vyl7_32.txt" )
+		powered.Label.SetText "Powered by"
+		powered.SetPosition( prPercentageOf( 50,WIDTH ),prPercentageOf( 68,HEIGHT ) )
+		
+		logo = New prGuiImage(guiLayer, spr.GetImage("cerberusLogo"))
+		logo.SetPosition( prPercentageOf( 50,WIDTH ),prPercentageOf( 80,HEIGHT ) )
+		
+		
+		status = New prGuiLabel()
+		status.SetLayer guiLayer
+		status.Label.SetBitmapFont prContent.GetFont("fonts/gameplayed-vyl7_24.txt" )
+		status.Label.SetText "Off"
+		status.SetPosition( prPercentageOf( 10,WIDTH ),prPercentageOf( 5,HEIGHT ) )
+		
+		vendor = New prGuiLabel()
+		vendor .SetLayer guiLayer
+		vendor .Label.SetBitmapFont prContent.GetFont("fonts/gameplayed-vyl7_24.txt" )
+		vendor .Label.SetText ""
+		vendor .SetPosition( prPercentageOf( 10,WIDTH ),prPercentageOf( 14.5,HEIGHT ) )
+		
+		' Controller connection status
+		joyoff = New prGuiImage(guiLayer, spr.GetImage("joyoff"))
+		joyoff.SetPosition( prPercentageOf( 10,WIDTH ),prPercentageOf( 10,HEIGHT ) )
+		joyon = New prGuiImage(guiLayer, spr.GetImage("joyon"))
+		joyon.SetPosition( prPercentageOf( 10,WIDTH ),prPercentageOf( 10,HEIGHT ) )
+		joyon.SetVisible False
+		
+		bat = New prGuiLabel()
+		bat .SetLayer guiLayer
+		bat .Label.SetBitmapFont prContent.GetFont("fonts/gameplayed-vyl7_24.txt" )
+		bat .Label.SetText "Batt."
+		bat .SetPosition( prPercentageOf( 78,WIDTH ),prPercentageOf( 5.0,HEIGHT ) )
+		
+		progressBar = prCreateHProgressBar( 100,8 )
+		progressBar.SetLayer guiLayer
+		progressBar.SetName "progressBar"
+		progressBar.SetMaximum 100
+		progressBar.SetValue 0
+		progressBar.SetPosition ( prPercentageOf( 78.0,WIDTH ),prPercentageOf( 10.0,HEIGHT ) )
+		
+		level = New prGuiLabel()
+		level .SetLayer guiLayer
+		level .Label.SetBitmapFont prContent.GetFont("fonts/gameplayed-vyl7_24.txt" )
+		level .Label.SetText "0%"
+		level .SetPosition( prPercentageOf( 78,WIDTH ),prPercentageOf( 12.5,HEIGHT ) )
+		
+		' The LEFT and RIGHT Trigger Buttons Z-Order is behind the gamepad image !!!!
+		buttonLT = New prGuiImage(guiLayer, spr.GetImage ( "buttonT" ))
+		buttonLT.SetPosition ( prPercentageOf( 27.2,WIDTH ),prPercentageOf( 17.5,HEIGHT ) )
+		lefttrigger[0] = buttonLT.X
+		lefttrigger[1] = buttonLT.Y
+		
+		buttonRT = New prGuiImage(guiLayer, spr.GetImage ( "buttonT" ))
+		buttonRT.SetPosition ( prPercentageOf( 72.9,WIDTH ),prPercentageOf(17.5,HEIGHT ) )
+		righttrigger[0] = buttonRT.X
+		righttrigger[1] = buttonRT.Y
+		
+		' Game pad image
+		gamepad = New prGuiImage(guiLayer, spr.GetImage("gamepad"))
+		gamepad.SetPosition( prPercentageOf( 50,WIDTH ),prPercentageOf( 50,HEIGHT ) )
+		
+		'XBOX A, B, X and Y Buttons - PS4 X, CIRCLE, SQUARE and TRIANGLE Buttons
+		buttonA = New prGuiImage(guiLayer, spr.GetImage ( "buttonA" ))
+		buttonA.SetPosition ( prPercentageOf( 73.6,WIDTH ),prPercentageOf( 43.3,HEIGHT ) )
+		buttonA.SetVisible False
+		
+		buttonB = New prGuiImage(guiLayer, spr.GetImage ( "buttonB" ))
+		buttonB.SetPosition ( prPercentageOf( 79.0,WIDTH ),prPercentageOf( 36.3,HEIGHT ) )
+		buttonB.SetVisible False
+		
+		buttonX = New prGuiImage(guiLayer, spr.GetImage ( "buttonX" ))
+		buttonX.SetPosition ( prPercentageOf( 68.3,WIDTH ),prPercentageOf( 36.3,HEIGHT ) )
+		buttonX.SetVisible False
+		
+		buttonY = New prGuiImage(guiLayer, spr.GetImage ( "buttonY" ))
+		buttonY.SetPosition ( prPercentageOf( 73.6,WIDTH ),prPercentageOf( 29.2,HEIGHT ) )
+		buttonY.SetVisible False
+		' DPAD LEFT, RIGHT, UP and DOWN Buttons
+		buttonLEFT = New prGuiImage(guiLayer, spr.GetImage ( "LEFT" ))
+		buttonLEFT.SetPosition ( prPercentageOf( 23.0,WIDTH ),prPercentageOf( 36.4,HEIGHT ) )
+		buttonLEFT.SetVisible False
+		
+		buttonRIGHT = New prGuiImage(guiLayer, spr.GetImage ( "RIGHT" ))
+		buttonRIGHT.SetPosition ( prPercentageOf( 30.3,WIDTH ),prPercentageOf( 36.4,HEIGHT ) )
+		buttonRIGHT.SetVisible False
+		
+		buttonUP = New prGuiImage(guiLayer, spr.GetImage ( "UP" ))
+		buttonUP.SetPosition ( prPercentageOf( 26.6,WIDTH ),prPercentageOf( 31.7,HEIGHT ) )
+		buttonUP.SetVisible False
+		
+		buttonDOWN = New prGuiImage(guiLayer, spr.GetImage ( "DOWN" ))
+		buttonDOWN.SetPosition ( prPercentageOf( 26.6,WIDTH ),prPercentageOf( 41.5,HEIGHT ) )
+		buttonDOWN.SetVisible False
+		'XBOX  MENU, VIEW and XBOX Buttons - PS4 OPTIONS, SHARE ans PS buttons
+		buttonMENU = New prGuiImage(guiLayer, spr.GetImage ( "options" ))
+		buttonMENU.SetPosition ( prPercentageOf( 63.8,WIDTH ),prPercentageOf( 25.7,HEIGHT ) )
+		buttonMENU.SetVisible False
+		
+		buttonVIEW = New prGuiImage(guiLayer, spr.GetImage ( "options" ))
+		buttonVIEW.SetPosition ( prPercentageOf( 36.4,WIDTH ),prPercentageOf( 25.7,HEIGHT ) )
+		buttonVIEW.SetVisible False
+		
+		buttonXBOX = New prGuiImage(guiLayer, spr.GetImage ( "xbox" ))
+		buttonXBOX.SetPosition ( prPercentageOf( 50.0,WIDTH ),prPercentageOf( 52.4,HEIGHT ) )
+		buttonXBOX.SetVisible False
+		' LEFT and RIGHT Shoulder Buttons
+		buttonLB = New prGuiImage(guiLayer, spr.GetImage ( "buttonS" ))
+		buttonLB.SetPosition ( prPercentageOf( 27.2,WIDTH ),prPercentageOf( 19.8,HEIGHT ) )
+		buttonLB.SetVisible False
+		
+		buttonRB = New prGuiImage(guiLayer, spr.GetImage ( "buttonS" ))
+		buttonRB.SetPosition ( prPercentageOf( 72.8,WIDTH ),prPercentageOf( 19.8,HEIGHT ) )
+		buttonRB.SetVisible False
+		' LEFT and RIGHT Joystick Buttons
+		buttonLJB = New prGuiImage(guiLayer, spr.GetImage ( "buttonjoystick" ))
+		buttonLJB.SetPosition ( prPercentageOf( 38.0,WIDTH ),prPercentageOf( 52.0,HEIGHT ) )
+		buttonLJB.SetVisible False
+		
+		buttonRJB = New prGuiImage(guiLayer, spr.GetImage ( "buttonjoystick" ))
+		buttonRJB.SetPosition ( prPercentageOf( 62.0,WIDTH ),prPercentageOf( 52.0,HEIGHT ) )
+		buttonRJB.SetVisible False
+		' LEFT and RIGHT Joystick
+		buttonLJOY = New prGuiImage(guiLayer, spr.GetImage ( "joystick" ))
+		buttonLJOY.SetPosition ( prPercentageOf( 38.0,WIDTH ),prPercentageOf( 51.0,HEIGHT ) )
+		leftstick[0] = buttonLJOY.X
+		leftstick[1] = buttonLJOY.Y
+		
+		buttonRJOY = New prGuiImage(guiLayer, spr.GetImage ( "joystick" ))
+		buttonRJOY.SetPosition ( prPercentageOf( 62.0,WIDTH ),prPercentageOf( 51.0,HEIGHT ) )
+		rightstick[0] = buttonRJOY.X
+		rightstick[1] = buttonRJOY.Y
+		
+		
+		
+		
+	End
+	
+	Method Format:String (n:Float)
+	Local i:=Int( n*100 )
+	If i>99 Return  "+1.00"
+	If i<-99 Return "-1.00"
+	If i>9 Return "+0."+i
+	If i<-9 Return "-0."+(-i)
+ 	If i>0 Return "+0.0"+i
+ 	If i<0 Return "-0.0"+(-i)
+ 	Return " 0.00"
+	End
+	
+	Method ReadPorts:Void()
+		'canvas.SetColor(0.0, 1.0, 0.0)
+		Local idx:Int=10
+		Local idy:Int=100
+		Local headerx:Int=10
+		Local headery:Int=100
+		For Local port:=0 Until 4
+			If JoyHit( JOY_MENU,port ) Print "Bong!"			
+			'canvas.PushMatrix
+			If port = 1
+				 headerx = 150
+			ElseIf port = 2
+				headerx = 750
+			ElseIf port = 3
+				headerx = 900
+			End 
+			canvas.DrawText "CONTROLLER:"+port,idx+headerx,headery
+			canvas.DrawText "JoyX(0) "+Format( JoyX(0,port) ),idx+headerx,20+idy
+			canvas.DrawText "JoyY(0) "+Format( JoyY(0,port) ),idx+headerx,40+idy
+			canvas.DrawText "JoyZ(0) "+Format( JoyZ(0,port) ),idx+headerx,60+idy
+			canvas.DrawText "JoyX(1) "+Format( JoyX(1,port) ),idx+headerx,80+idy
+			canvas.DrawText "JoyY(1) "+Format( JoyY(1,port) ),idx+headerx,100+idy
+			canvas.DrawText "JoyZ(1) "+Format( JoyZ(1,port) ),idx+headerx,120+idy
+			canvas.DrawText "JOY_A       "+JoyDown(JOY_A,port),idx+headerx,140+idy
+			canvas.DrawText "JOY_B       "+JoyDown(JOY_B,port),idx+headerx,160+idy
+			canvas.DrawText "JOY_X       "+JoyDown(JOY_X,port),idx+headerx,180+idy
+			canvas.DrawText "JOY_Y       "+JoyDown(JOY_Y,port),idx+headerx,200+idy
+			canvas.DrawText "JOY_LB      "+JoyDown(JOY_LB,port),idx+headerx,220+idy
+			canvas.DrawText "JOY_RB      "+JoyDown(JOY_RB,port),idx+headerx,240+idy
+			canvas.DrawText "JOY_BACK    "+JoyDown(JOY_BACK,port),idx+headerx,260+idy
+			canvas.DrawText "JOY_START   "+JoyDown(JOY_START,port),idx+headerx,280+idy
+			canvas.DrawText "JOY_LEFT    "+JoyDown(JOY_LEFT,port),idx+headerx,300+idy
+			canvas.DrawText "JOY_UP      "+JoyDown(JOY_UP,port),idx+headerx,320+idy
+			canvas.DrawText "JOY_RIGHT   "+JoyDown(JOY_RIGHT,port),idx+headerx,340+idy
+			canvas.DrawText "JOY_DOWN    "+JoyDown(JOY_DOWN,port),idx+headerx,360+idy
+			canvas.DrawText "JOY_LSB     "+JoyDown(JOY_LSB,port),idx+headerx,380+idy
+			canvas.DrawText "JOY_RSB     "+JoyDown(JOY_RSB,port),idx+headerx,400+idy
+			canvas.DrawText "JOY_MENU    "+JoyDown(JOY_MENU,port),idx+headerx,420+idy
+			'canvas.DrawText "PS$ new    "+JoyDown(15,port),idx+headerx,440+idy
+			'canvas.PopMatrix
+		Next
+	
+	End
+
+End
+
+
+'Functions
+
+Function DrawAxis:Void(button:prGuiImage, x:Float, y:Float, width:Float, height:Float, axis:Float)
+
+		
+	'Local size:= Min(16.0, Max(2.0, height * 0.1))
+	Local size:= Min(16.0, Max(2.0, height ))
+	Local offset:= (height / 2.0) + (axis * ( (height - size) / 2.0)) - (size / 2.0)
+		
+	If offset >= 0 And offset < width
+		button.SetPosition x , y +offset
+	Else
+		button.SetPosition(x,y)
+	EndIf
+End
+	
+
+Function DrawAnalog:Void(button:prGuiImage,  x:Float, y:Float,axisX:Float, axisY:Float)
+		
+	Local length:= Sqrt( (axisX * axisX) + (axisY * axisY))
+	'Local size:= Min(19.0, Max(7.0, radius * 0.1))
+	Local radius:Float = button.Width*0.5
+	Local cursorX:Float
+	Local cursorY:Float
+		
+	If length > 0
+		Local ratio:Float
+		If Abs(axisX) > Abs(axisY)
+			ratio = Abs(axisX / 1.0) / length
+		Else
+			ratio = Abs(axisY / 1.0) / length
+		EndIf
+			
+		cursorX = axisX * radius * ratio
+		cursorY = axisY * radius * ratio
+		button.SetPosition(cursorX+x,cursorY+y)
+	Else
+		button.SetPosition(x,y)
+	EndIf
+		
+	
+End
+
+	
+Function DrawButton:Void(button:prGuiImage, pressed:Bool)
+
+	If pressed
+		button.SetVisible True
+	Else
+		button.SetVisible False
+	EndIf
+End

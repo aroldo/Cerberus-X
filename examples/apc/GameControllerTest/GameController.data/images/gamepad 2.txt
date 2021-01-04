@@ -1,0 +1,110 @@
+gamepad.png
+size: 827, 592
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+buttonS
+  rotate: false
+  xy: 2, 2
+  size: 95, 18
+  orig: 95, 18
+  offset: 0, 0
+  index: -1
+buttonT
+  rotate: false
+  xy: 99, 2
+  size: 101, 36
+  orig: 101, 36
+  offset: 0, 0
+  index: -1
+left
+  rotate: false
+  xy: 202, 2
+  size: 51, 40
+  orig: 51, 40
+  offset: 0, 0
+  index: -1
+right
+  rotate: false
+  xy: 255, 2
+  size: 51, 40
+  orig: 51, 40
+  offset: 0, 0
+  index: -1
+options
+  rotate: false
+  xy: 308, 2
+  size: 24, 41
+  orig: 24, 41
+  offset: 0, 0
+  index: -1
+buttonA
+  rotate: false
+  xy: 334, 2
+  size: 47, 49
+  orig: 47, 49
+  offset: 0, 0
+  index: -1
+buttonB
+  rotate: false
+  xy: 383, 2
+  size: 47, 49
+  orig: 47, 49
+  offset: 0, 0
+  index: -1
+buttonX
+  rotate: false
+  xy: 432, 2
+  size: 47, 49
+  orig: 47, 49
+  offset: 0, 0
+  index: -1
+buttonY
+  rotate: false
+  xy: 481, 2
+  size: 47, 49
+  orig: 47, 49
+  offset: 0, 0
+  index: -1
+xbox
+  rotate: false
+  xy: 530, 2
+  size: 47, 49
+  orig: 47, 49
+  offset: 0, 0
+  index: -1
+down
+  rotate: false
+  xy: 579, 2
+  size: 40, 51
+  orig: 40, 51
+  offset: 0, 0
+  index: -1
+up
+  rotate: false
+  xy: 621, 2
+  size: 40, 51
+  orig: 40, 51
+  offset: 0, 0
+  index: -1
+joystick
+  rotate: false
+  xy: 663, 2
+  size: 65, 67
+  orig: 65, 67
+  offset: 0, 0
+  index: -1
+buttonjoystick
+  rotate: false
+  xy: 730, 2
+  size: 95, 99
+  orig: 95, 99
+  offset: 0, 0
+  index: -1
+gamepad
+  rotate: false
+  xy: 2, 103
+  size: 760, 487
+  orig: 760, 487
+  offset: 0, 0
+  index: -1
